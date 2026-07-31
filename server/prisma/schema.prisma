@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+
+  plaidItems Item[]
+  buckets    Bucket[]
+  alerts     Alert[]
+}
+
+// One PlaidItem per bank/credit-card institution connection
+model Item {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  plaidItemId String   @unique
+  accessToken String
+  institution String?
+  createdAt   DateTime @default(now())
+
+  accounts Account[]
+}
+
+model Account {
+  id              String   @id @default(uuid())
+  itemId          String
+  item            Item     @relation(fields: [itemId], references: [id])
+  plaidAccountId  String   @unique
+  name            String
+  officialName    String?
+  mask            String?
+  type            String
+  subtype         String?
+  currentBalance  Float?
+  availableBalance Float?
+  isoCurrencyCode String?
+  createdAt       DateTime @default(now())
+
+  transactions Transaction[]
+  cardControl  CardControl?
+}
+
+model Transaction {
+  id                String   @id @default(uuid())
+  accountId         String
+  account           Account  @relation(fields: [accountId], references: [id])
+  plaidTransactionId String  @unique
+  amount            Float
+  isoCurrencyCode   String?
+  name              String
+  merchantName      String?
+  category          String?
+  pending           Boolean  @default(false)
+  date              DateTime
+  bucketId          String?
+  bucket            Bucket?  @relation(fields: [bucketId], references: [id])
+  createdAt         DateTime @default(now())
+}
+
+// User-defined budget "buckets" (e.g. Groceries, Rent, Fun Money)
+model Bucket {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  name           String
+  color          String   @default("#6366f1")
+  icon           String   @default("wallet")
+  monthlyLimit   Float
+  alertThresholds String  @default("[80,100]") // JSON-encoded array of percentages
+  createdAt      DateTime @default(now())
+
+  transactions Transaction[]
+  rules        BucketRule[]
+  alerts       Alert[]
+
+  @@unique([userId, name])
+}
+
+// Auto-categorization rules: match transaction name/merchant/category to a bucket
+model BucketRule {
+  id        String   @id @default(uuid())
+  bucketId  String
+  bucket    Bucket   @relation(fields: [bucketId], references: [id])
+  matchType String   // "merchant" | "category" | "keyword"
+  matchValue String
+  createdAt DateTime @default(now())
+}
+
+model Alert {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  bucketId  String?
+  bucket    Bucket?  @relation(fields: [bucketId], references: [id])
+  type      String   // "budget_threshold" | "card_locked" | "card_unlocked" | "large_transaction"
+  message   String
+  threshold Int?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// Tracks lock/unlock state per linked card/account.
+// Real "freeze card" actions depend on issuer-specific APIs (see cardControlService.ts).
+model CardControl {
+  id         String   @id @default(uuid())
+  accountId  String   @unique
+  account    Account  @relation(fields: [accountId], references: [id])
+  locked     Boolean  @default(false)
+  provider   String   @default("mock") // which CardControlProvider handled this
+  lastAction DateTime?
+  updatedAt  DateTime @updatedAt
+}
