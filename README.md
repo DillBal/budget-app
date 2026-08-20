@@ -2,7 +2,7 @@
 
 A personal budget app that connects to your bank accounts and credit cards via [Plaid](https://plaid.com), lets you create your own budget "buckets," alerts you when you approach spending limits, and lets you lock/unlock linked cards.
 
-- `server/` — Node.js/Express + Prisma (SQLite) API. Handles auth, Plaid linking/sync, buckets, alerts, and card controls.
+- `server/` — Node.js/Express + Prisma (Postgres) API. Handles auth, Plaid linking/sync, buckets, alerts, and card controls.
 - `web/` — React + Vite PWA. Installable to your iPhone home screen via Safari's "Add to Home Screen." A React Native app can be added later, reusing the same `server/` API.
 
 ## 1. Prerequisites
@@ -16,7 +16,8 @@ A personal budget app that connects to your bank accounts and credit cards via [
 cd server
 npm install
 cp .env.example .env
-# Edit .env: set JWT_SECRET, PLAID_CLIENT_ID, PLAID_SECRET (from https://dashboard.plaid.com/developers/keys)
+# Edit .env: set DATABASE_URL, JWT_SECRET, PLAID_CLIENT_ID, PLAID_SECRET (from https://dashboard.plaid.com/developers/keys)
+# DATABASE_URL should be a Postgres connection string.
 npx prisma migrate dev --name init
 npm run dev
 ```
@@ -31,7 +32,9 @@ npm install
 npm run dev
 ```
 
-The app runs on `http://localhost:5173`. Open it in your browser, or on your iPhone (same Wi-Fi network, using your machine's LAN IP) and tap Share → "Add to Home Screen" to install it as a PWA.
+The app runs on `http://localhost:5173`. In dev, the Vite dev server proxies `/api/*` to `http://localhost:4000`.
+
+Open it in your browser, or on your iPhone (same Wi-Fi network, using your machine's LAN IP) and tap Share → "Add to Home Screen" to install it as a PWA.
 
 ## 4. Using Plaid in sandbox mode
 
