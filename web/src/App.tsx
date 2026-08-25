@@ -5,6 +5,7 @@ import DashboardPage from "./pages/DashboardPage";
 import BucketsPage from "./pages/BucketsPage";
 import AccountsPage from "./pages/AccountsPage";
 import AlertsPage from "./pages/AlertsPage";
+import SavingsPage from "./pages/SavingsPage";
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/buckets" element={<BucketsPage />} />
+        <Route path="/savings" element={<SavingsPage />} />
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
       </Route>

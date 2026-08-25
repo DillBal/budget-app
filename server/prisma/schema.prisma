@@ -17,6 +17,21 @@ model User {
   plaidItems Item[]
   buckets    Bucket[]
   alerts     Alert[]
+  balanceSnapshots BalanceSnapshot[]
+}
+
+// Daily snapshot of a user's total savings-account balance, so we can chart
+// savings over time and project a trend (balances from Plaid are only a
+// current snapshot, so we persist history going forward).
+model BalanceSnapshot {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  date         DateTime // normalized to midnight UTC (one per user per day)
+  totalSavings Float
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, date])
 }
 
 // One PlaidItem per bank/credit-card institution connection

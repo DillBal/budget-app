@@ -1,10 +1,11 @@
 import { NavLink, Outlet, Navigate } from "react-router-dom";
-import { LayoutDashboard, Wallet, Landmark, Bell, LogOut } from "lucide-react";
+import { LayoutDashboard, Wallet, Landmark, Bell, LogOut, TrendingUp } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/buckets", label: "Buckets", icon: Wallet },
+  { to: "/savings", label: "Savings", icon: TrendingUp },
   { to: "/accounts", label: "Accounts", icon: Landmark },
   { to: "/alerts", label: "Alerts", icon: Bell },
 ];

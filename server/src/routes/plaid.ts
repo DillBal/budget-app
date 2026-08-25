@@ -4,6 +4,7 @@ import { plaidClient } from "../services/plaidClient";
 import { prisma } from "../prisma";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
 import { config } from "../config";
+import { captureBalanceSnapshot } from "../services/savingsService";
 
 const router = Router();
 router.use(requireAuth);
@@ -107,6 +108,13 @@ router.post("/sync-transactions", async (req: AuthedRequest, res) => {
         });
         added += 1;
       }
+    }
+
+    // Record a savings-balance snapshot so the savings chart has fresh data.
+    try {
+      await captureBalanceSnapshot(req.userId!);
+    } catch (err) {
+      console.error("Failed to capture balance snapshot during sync:", err);
     }
 
     res.json({ syncedTransactions: added });

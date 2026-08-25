@@ -61,3 +61,14 @@ export interface AlertItem {
   read: boolean;
   createdAt: string;
 }
+
+export interface SavingsPoint {
+  date: string;
+  actual: number | null;
+  projected: number | null;
+}
+
+export interface SavingsSeries {
+  currentBalance: number;
+  points: SavingsPoint[];
+}
