@@ -1,4 +1,5 @@
 import axios from "axios";
+import { isDemoActive } from "./demoFlag";
 
 const explicitApiUrl = import.meta.env.VITE_API_URL?.trim();
 
@@ -8,7 +9,15 @@ export const api = axios.create({
   baseURL: API_BASE_URL ? `${API_BASE_URL}/api` : "/api",
 });
 
-api.interceptors.request.use((cfg) => {
+api.interceptors.request.use(async (cfg) => {
+  // In demo mode, swap in a fake adapter so requests never hit the network.
+  // `import.meta.env.DEV` is statically false in production, so this dynamic
+  // import (and the whole demo dataset) is dropped from the prod bundle.
+  if (import.meta.env.DEV && isDemoActive()) {
+    const { demoAdapter } = await import("./demo");
+    cfg.adapter = demoAdapter;
+  }
+
   const token = localStorage.getItem("token");
   if (token) {
     cfg.headers = cfg.headers ?? {};

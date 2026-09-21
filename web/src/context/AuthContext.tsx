@@ -1,21 +1,7 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { useState, ReactNode } from "react";
 import { api } from "../lib/api";
-
-interface User {
-  id: string;
-  email: string;
-  name?: string | null;
-}
-
-interface AuthContextValue {
-  user: User | null;
-  token: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name?: string) => Promise<void>;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+import { isDemoEnabled, setDemoActive } from "../lib/demoFlag";
+import { AuthContext, User } from "./auth";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
@@ -41,7 +27,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     persist(res.data.token, res.data.user);
   }
 
+  // Dev-only: sign in without an account. Requests are served by the offline
+  // demo adapter, so no backend or database is needed.
+  function loginDemo() {
+    if (!isDemoEnabled()) return;
+    setDemoActive(true);
+    persist("demo-token", { id: "demo-user", email: "demo@example.com", name: "Demo" });
+  }
+
   function logout() {
+    setDemoActive(false);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setToken(null);
@@ -49,14 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, login, register, loginDemo, logout }}>
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
 }

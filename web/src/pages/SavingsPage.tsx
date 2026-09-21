@@ -10,16 +10,20 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import { TrendingUp } from "lucide-react";
 import { api, SavingsSeries } from "../lib/api";
+import { formatCurrency, formatCurrencyShort } from "../lib/format";
 import {
   MARKET_PRESETS,
   buildInvestmentSeries,
   totalContributed,
   InvestmentInputs,
 } from "../lib/investment";
-
-const currency = (n: number) =>
-  n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+import { Card, CardTitle } from "../components/ui/Card";
+import { StatCard } from "../components/ui/StatCard";
+import { Input, Select, Label } from "../components/ui/Field";
+import { Skeleton } from "../components/ui/Skeleton";
+import { EmptyState } from "../components/ui/EmptyState";
 
 const isoToTs = (iso: string) => new Date(`${iso}T00:00:00.000Z`).getTime();
 
@@ -56,8 +60,6 @@ export default function SavingsPage() {
 
   const preset = MARKET_PRESETS.find((p) => p.key === presetKey) ?? MARKET_PRESETS[0];
   const annualRatePct = preset.key === "custom" ? customRate : preset.annualRatePct;
-
-  // Default the initial amount to the current savings balance once loaded.
   const effectiveInitial = initialAmount ?? series?.currentBalance ?? 0;
 
   const projectedEnd = useMemo(() => {
@@ -83,149 +85,154 @@ export default function SavingsPage() {
     if (!series) return [];
     const byTs = new Map<number, ChartRow>();
     const upsert = (t: number, patch: Partial<ChartRow>) => {
-      const row = byTs.get(t) ?? { t };
-      byTs.set(t, { ...row, ...patch });
+      byTs.set(t, { ...(byTs.get(t) ?? { t }), ...patch });
     };
 
     for (const p of series.points) {
-      const t = isoToTs(p.date);
-      upsert(t, { actual: p.actual, projected: p.projected });
+      upsert(isoToTs(p.date), { actual: p.actual, projected: p.projected });
     }
-
     if (showInvested && investmentInputs) {
       for (const ip of buildInvestmentSeries(investmentInputs)) {
         upsert(ip.t, { invested: ip.invested });
       }
     }
-
     return Array.from(byTs.values()).sort((a, b) => a.t - b.t);
   }, [series, showInvested, investmentInputs]);
 
-  if (loading) return <p className="text-slate-400 text-sm">Loading...</p>;
-  if (error) return <p className="text-red-400 text-sm">{error}</p>;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-7 w-32" />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-xl2" />
+          ))}
+        </div>
+        <Skeleton className="h-40 w-full rounded-xl2" />
+        <Skeleton className="h-80 w-full rounded-xl2" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <EmptyState icon={TrendingUp} title="Couldn't load savings" description={error} />
+    );
+  }
   if (!series) return null;
 
   const hasHistory = series.points.some((p) => p.actual != null);
-  const investedEnd =
-    showInvested && investmentInputs
-      ? buildInvestmentSeries(investmentInputs).slice(-1)[0]?.invested ?? null
-      : null;
+  const investedSeries =
+    showInvested && investmentInputs ? buildInvestmentSeries(investmentInputs) : [];
+  const investedEnd = investedSeries.length ? investedSeries[investedSeries.length - 1].invested : null;
   const growth =
     investedEnd != null && investmentInputs ? investedEnd - totalContributed(investmentInputs) : null;
 
-  const inputCls =
-    "w-full bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-sm text-slate-100";
-
   return (
-    <div className="space-y-8">
-      <h1 className="text-xl font-bold">Savings</h1>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <p className="text-xs text-slate-500">Current savings</p>
-          <p className="text-2xl font-bold">{currency(series.currentBalance)}</p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <p className="text-xs text-slate-500">Projected (trend)</p>
-          <p className="text-2xl font-bold text-sky-300">
-            {projectedEnd != null ? currency(projectedEnd) : "—"}
-          </p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <p className="text-xs text-slate-500">If invested ({horizonYears}y)</p>
-          <p className="text-2xl font-bold text-emerald-300">
-            {investedEnd != null ? currency(investedEnd) : "—"}
-          </p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <p className="text-xs text-slate-500">Est. market growth</p>
-          <p className="text-2xl font-bold text-emerald-300">
-            {growth != null ? currency(growth) : "—"}
-          </p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Savings</h1>
+        <p className="mt-0.5 text-sm text-slate-500">
+          Track your balance and model what investing could look like.
+        </p>
       </div>
 
-      {/* Market calculator controls */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-slate-400">Market calculator</h2>
-          <label className="flex items-center gap-2 text-xs text-slate-400">
-            <input
-              type="checkbox"
-              checked={showInvested}
-              onChange={(e) => setShowInvested(e.target.checked)}
-            />
-            Show on chart
-          </label>
-        </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        <StatCard label="Current savings" value={formatCurrencyShort(series.currentBalance)} />
+        <StatCard
+          label="Projected (trend)"
+          tone="brand"
+          value={projectedEnd != null ? formatCurrencyShort(projectedEnd) : "—"}
+        />
+        <StatCard
+          label={`If invested (${horizonYears}y)`}
+          tone="positive"
+          value={investedEnd != null ? formatCurrencyShort(investedEnd) : "—"}
+        />
+        <StatCard
+          label="Est. market growth"
+          tone="positive"
+          value={growth != null ? formatCurrencyShort(growth) : "—"}
+        />
+      </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <label className="text-xs text-slate-400 space-y-1">
-            <span>Fund / ETF</span>
-            <select className={inputCls} value={presetKey} onChange={(e) => setPresetKey(e.target.value)}>
+      {/* Market calculator */}
+      <Card className="animate-fade-up">
+        <CardTitle
+          action={
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
+              <input
+                type="checkbox"
+                checked={showInvested}
+                onChange={(e) => setShowInvested(e.target.checked)}
+                className="accent-brand"
+              />
+              Show on chart
+            </label>
+          }
+        >
+          Market calculator
+        </CardTitle>
+
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <div>
+            <Label>Fund / ETF</Label>
+            <Select value={presetKey} onChange={(e) => setPresetKey(e.target.value)}>
               {MARKET_PRESETS.map((p) => (
                 <option key={p.key} value={p.key}>
                   {p.label}
                   {p.ticker ? ` (${p.ticker})` : ""}
                 </option>
               ))}
-            </select>
-          </label>
-
-          <label className="text-xs text-slate-400 space-y-1">
-            <span>Annual return %</span>
-            <input
+            </Select>
+          </div>
+          <div>
+            <Label>Annual return %</Label>
+            <Input
               type="number"
-              className={inputCls}
+              className="nums"
               value={annualRatePct}
               disabled={preset.key !== "custom"}
               onChange={(e) => setCustomRate(Number(e.target.value))}
             />
-          </label>
-
-          <label className="text-xs text-slate-400 space-y-1">
-            <span>Initial amount</span>
-            <input
+          </div>
+          <div>
+            <Label>Initial amount</Label>
+            <Input
               type="number"
-              className={inputCls}
+              className="nums"
               value={Math.round(effectiveInitial)}
               onChange={(e) => setInitialAmount(Number(e.target.value))}
             />
-          </label>
-
-          <label className="text-xs text-slate-400 space-y-1">
-            <span>Monthly contribution</span>
-            <input
+          </div>
+          <div>
+            <Label>Monthly</Label>
+            <Input
               type="number"
-              className={inputCls}
+              className="nums"
               value={monthlyContribution}
               onChange={(e) => setMonthlyContribution(Number(e.target.value))}
             />
-          </label>
-
-          <label className="text-xs text-slate-400 space-y-1">
-            <span>Horizon (years)</span>
-            <select
-              className={inputCls}
-              value={horizonYears}
-              onChange={(e) => setHorizonYears(Number(e.target.value))}
-            >
+          </div>
+          <div>
+            <Label>Horizon (years)</Label>
+            <Select value={horizonYears} onChange={(e) => setHorizonYears(Number(e.target.value))}>
               {[1, 3, 5, 10, 20, 30].map((y) => (
                 <option key={y} value={y}>
                   {y}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </div>
         </div>
-        <p className="text-[11px] text-slate-500 mt-3">
+        <p className="mt-3 text-[11px] leading-relaxed text-slate-600">
           Illustrative only. Returns compound monthly at the assumed rate; markets don't grow in a
           straight line and past performance doesn't guarantee future results.
         </p>
-      </div>
+      </Card>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-        <h2 className="text-sm font-semibold text-slate-400 mb-4">Savings over time</h2>
+      <Card className="animate-fade-up">
+        <CardTitle>Savings over time</CardTitle>
         {hasHistory || showInvested ? (
           <ResponsiveContainer width="100%" height={340}>
             <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
@@ -235,7 +242,7 @@ export default function SavingsPage() {
                   <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
               <XAxis
                 dataKey="t"
                 type="number"
@@ -243,26 +250,31 @@ export default function SavingsPage() {
                 domain={["dataMin", "dataMax"]}
                 tickFormatter={formatAxisDate}
                 tick={{ fill: "#64748b", fontSize: 11 }}
-                stroke="#334155"
+                stroke="rgba(255,255,255,0.1)"
               />
               <YAxis
                 tick={{ fill: "#64748b", fontSize: 11 }}
-                stroke="#334155"
-                tickFormatter={(v) => currency(Number(v))}
+                stroke="rgba(255,255,255,0.1)"
+                tickFormatter={(v) => formatCurrencyShort(Number(v))}
                 width={70}
               />
               <Tooltip
-                contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8 }}
+                contentStyle={{
+                  background: "#0e1626",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 12,
+                  boxShadow: "0 8px 30px -12px rgba(0,0,0,0.8)",
+                }}
                 labelStyle={{ color: "#94a3b8" }}
                 labelFormatter={(v) => formatAxisDate(Number(v))}
-                formatter={(value: number) => currency(value)}
+                formatter={(value: number) => formatCurrency(value)}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Area
                 type="monotone"
                 dataKey="actual"
                 name="Actual savings"
-                stroke="#6366f1"
+                stroke="#818cf8"
                 fill="url(#actualFill)"
                 strokeWidth={2}
                 connectNulls
@@ -292,12 +304,13 @@ export default function SavingsPage() {
             </ComposedChart>
           </ResponsiveContainer>
         ) : (
-          <p className="text-slate-500 text-sm">
-            No savings history yet. History builds up over time as your balances are recorded
-            (on each transaction sync and daily). Check back after your first sync.
-          </p>
+          <EmptyState
+            icon={TrendingUp}
+            title="No savings history yet"
+            description="History builds up as your balances are recorded on each transaction sync and daily."
+          />
         )}
-      </div>
+      </Card>
     </div>
   );
 }

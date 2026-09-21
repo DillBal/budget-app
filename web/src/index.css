@@ -1,3 +1,9 @@
+/* Latin subset only - keeps the PWA precache small. */
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-500.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/inter/latin-700.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,5 +13,40 @@ html, body, #root {
 }
 
 body {
-  @apply bg-slate-950 text-slate-100 antialiased;
+  @apply bg-canvas text-slate-100 antialiased;
+  /* Subtle depth so large dark areas don't read as flat black. */
+  background-image:
+    radial-gradient(60rem 40rem at 15% -10%, rgba(99, 102, 241, 0.12), transparent 60%),
+    radial-gradient(50rem 35rem at 110% 0%, rgba(56, 189, 248, 0.08), transparent 55%);
+  background-attachment: fixed;
+}
+
+@layer utilities {
+  /* Money and other figures should not jitter as digits change. */
+  .nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* iOS notch / home-indicator padding (index.html sets viewport-fit=cover). */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right);
+  }
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Consistent, visible keyboard focus across the app. */
+:focus-visible {
+  @apply outline-none ring-2 ring-brand/70 ring-offset-2 ring-offset-canvas;
 }

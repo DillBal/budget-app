@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePlaidLink } from "react-plaid-link";
-import { Lock, Unlock, Landmark, Plus } from "lucide-react";
+import { Lock, Unlock, Landmark, Plus, RefreshCw } from "lucide-react";
 import { api, Account } from "../lib/api";
+import { formatCurrency } from "../lib/format";
+import { Card } from "../components/ui/Card";
+import { Button } from "../components/ui/Button";
+import { SkeletonList } from "../components/ui/Skeleton";
+import { EmptyState } from "../components/ui/EmptyState";
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -9,6 +14,7 @@ export default function AccountsPage() {
   const [busyAccountId, setBusyAccountId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const loadAccounts = useCallback(async () => {
     const res = await api.get("/plaid/accounts");
@@ -20,8 +26,15 @@ export default function AccountsPage() {
   }, [loadAccounts]);
 
   async function createLinkToken() {
-    const res = await api.post("/plaid/link-token");
-    setLinkToken(res.data.linkToken);
+    setLinkError(null);
+    try {
+      const res = await api.post("/plaid/link-token");
+      setLinkToken(res.data.linkToken);
+    } catch (err: any) {
+      setLinkError(
+        err?.response?.data?.error ?? "Couldn't start account linking. Please try again."
+      );
+    }
   }
 
   const onSuccess = useCallback(
@@ -64,70 +77,79 @@ export default function AccountsPage() {
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold">Accounts</h1>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Accounts</h1>
+          <p className="mt-0.5 text-sm text-slate-500">Linked banks and cards.</p>
+        </div>
         <div className="flex gap-2">
-          <button
-            onClick={syncTransactions}
-            disabled={syncing}
-            className="text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded-lg px-3 py-2"
-          >
-            {syncing ? "Syncing..." : "Sync transactions"}
-          </button>
-          <button
-            onClick={createLinkToken}
-            className="flex items-center gap-1 text-sm bg-indigo-600 hover:bg-indigo-500 rounded-lg px-3 py-2"
-          >
-            <Plus size={16} /> Connect account
-          </button>
+          <Button variant="secondary" size="sm" onClick={syncTransactions} disabled={syncing}>
+            <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+            {syncing ? "Syncing" : "Sync"}
+          </Button>
+          <Button size="sm" onClick={createLinkToken}>
+            <Plus size={16} /> Connect
+          </Button>
         </div>
       </div>
 
-      <p className="text-xs text-slate-500 mb-6">
+      {linkError && (
+        <p className="rounded-lg border border-caution/20 bg-caution/10 px-3 py-2 text-sm text-caution">
+          {linkError}
+        </p>
+      )}
+
+      {loading ? (
+        <SkeletonList count={3} lines={2} />
+      ) : accounts.length === 0 ? (
+        <EmptyState
+          icon={Landmark}
+          title="No accounts connected"
+          description="Connect a bank or credit card to start syncing transactions."
+          action={<Button size="sm" onClick={createLinkToken}>Connect account</Button>}
+        />
+      ) : (
+        <div className="grid gap-3">
+          {accounts.map((account) => {
+            const locked = account.cardControl?.locked;
+            return (
+              <Card
+                key={account.id}
+                className="animate-fade-up flex items-center justify-between gap-4"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{account.name}</p>
+                  <p className="mt-0.5 truncate text-xs text-slate-500">
+                    {account.item.institution ?? "Unknown institution"} •••• {account.mask} •{" "}
+                    {account.subtype}
+                  </p>
+                  <p className="nums mt-1.5 text-lg font-semibold">
+                    {account.currentBalance != null ? formatCurrency(account.currentBalance) : "—"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => toggleLock(account)}
+                  disabled={busyAccountId === account.id}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all active:scale-95 disabled:opacity-50 ${
+                    locked
+                      ? "border-negative/20 bg-negative/10 text-negative hover:bg-negative/20"
+                      : "border-positive/20 bg-positive/10 text-positive hover:bg-positive/20"
+                  }`}
+                >
+                  {locked ? <Lock size={14} /> : <Unlock size={14} />}
+                  {locked ? "Locked" : "Unlocked"}
+                </button>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <p className="text-xs leading-relaxed text-slate-600">
         Card lock/unlock uses a mock provider by default. Real card freezing requires your specific
         card issuer's API — see the README for details.
       </p>
-
-      {loading ? (
-        <p className="text-slate-400 text-sm">Loading...</p>
-      ) : accounts.length === 0 ? (
-        <div className="text-center py-16 text-slate-500">
-          <Landmark className="mx-auto mb-3" size={32} />
-          <p>No accounts connected yet.</p>
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {accounts.map((account) => (
-            <div
-              key={account.id}
-              className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl p-4"
-            >
-              <div>
-                <p className="font-medium">{account.name}</p>
-                <p className="text-xs text-slate-500">
-                  {account.item.institution ?? "Unknown institution"} •••• {account.mask} • {account.subtype}
-                </p>
-                <p className="text-sm text-slate-300 mt-1">
-                  {account.currentBalance != null ? `$${account.currentBalance.toFixed(2)}` : "—"}
-                </p>
-              </div>
-              <button
-                onClick={() => toggleLock(account)}
-                disabled={busyAccountId === account.id}
-                className={`flex items-center gap-1 text-xs rounded-lg px-3 py-2 disabled:opacity-50 ${
-                  account.cardControl?.locked
-                    ? "bg-red-600/20 text-red-300 hover:bg-red-600/30"
-                    : "bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30"
-                }`}
-              >
-                {account.cardControl?.locked ? <Lock size={14} /> : <Unlock size={14} />}
-                {account.cardControl?.locked ? "Locked" : "Unlocked"}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
